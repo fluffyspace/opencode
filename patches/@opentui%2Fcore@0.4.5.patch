@@ -1,0 +1,12 @@
+diff --git a/chunk-bun-tkm837n2.js b/chunk-bun-tkm837n2.js
+index 0000000..0000000 100644
+--- a/chunk-bun-tkm837n2.js
++++ b/chunk-bun-tkm837n2.js
+@@ -9169,6 +9169,7 @@
+     this.currentRenderBuffer = this.lib.getCurrentBuffer(this.rendererPtr);
+     this._console.resize(this.width, this.height);
+     this.root.resize(this.width, this.height);
++    this.forceFullRepaintRequested = true;
+     this.emit("resize" /* RESIZE */, this.width, this.height);
+     this.requestRender();
+   }
