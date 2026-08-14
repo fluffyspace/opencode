@@ -162,6 +162,45 @@ OpenCode permissions are keyed by tool name, plus a couple of safety guards:
 - `websearch` — web search (matches the query)
 - `external_directory` — triggered when a tool touches paths outside the project working directory
 - `doom_loop` — triggered when the same tool call repeats 3 times with identical input
+- `tool_result` — gates whether a tool's **output** is forwarded to the model after the tool runs (matches the tool name)
+
+---
+
+## Reviewing Tool Output
+
+Unlike the permissions above — which gate whether a tool call runs — `tool_result` gates what the tool **returns** to the model *after* it has executed. Set it to `"ask"` to review every tool result before it is sent, which is useful when you can't predict what a tool will output (for example, shell commands that might print secrets):
+
+```json title="opencode.json"
+{
+  "permission": {
+    "tool_result": {
+      "*": "ask"
+    }
+  }
+}
+```
+
+When `tool_result` is `"ask"`, OpenCode shows the output in the approval prompt and offers three outcomes:
+
+- `once` — send this result to the model
+- `always` — send this result and always forward results from the same tool for the rest of the session
+- `reject` — withhold the result; the model instead receives `[Tool output withheld by the user]`
+
+With `"deny"`, the result is silently withheld without prompting. With `"allow"` (the default), results are forwarded unchanged.
+
+You can scope it per tool, e.g. prompt only for shell and read output while auto-allowing the rest:
+
+```json title="opencode.json"
+{
+  "permission": {
+    "tool_result": {
+      "*": "allow",
+      "bash": "ask",
+      "read": "ask"
+    }
+  }
+}
+```
 
 ---
 

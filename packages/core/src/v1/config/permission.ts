@@ -31,6 +31,10 @@ const InputObject = Schema.StructWithRest(
     lsp: Schema.optional(Rule),
     doom_loop: Schema.optional(Action),
     skill: Schema.optional(Rule),
+    // Gates whether a tool's output is sent back to the model after it runs.
+    // Patterns match tool names (e.g. `bash`, `read`). Use `"ask"` to review
+    // every result before it is forwarded to the model.
+    tool_result: Schema.optional(Rule),
   }),
   [Schema.Record(Schema.String, Rule)],
 )

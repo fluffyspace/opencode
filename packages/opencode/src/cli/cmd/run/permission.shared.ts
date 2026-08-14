@@ -116,6 +116,15 @@ export function permissionInfo(request: PermissionRequest): PermissionInfo {
     }
   }
 
+  if (request.permission === "tool_result") {
+    const tool = patterns(request)[0] || "tool"
+    return {
+      icon: "⇢",
+      title: `Send output of ${tool} to the model?`,
+      lines: [text(dict(request.metadata).output) || "(empty output)"],
+    }
+  }
+
   return {
     icon: "⚙",
     title: `Call tool ${request.permission}`,
@@ -125,11 +134,17 @@ export function permissionInfo(request: PermissionRequest): PermissionInfo {
 
 export function permissionAlwaysLines(request: PermissionRequest): string[] {
   if (request.always.length === 1 && request.always[0] === "*") {
-    return [`This will allow ${request.permission} until OpenCode is restarted.`]
+    return [
+      request.permission === "tool_result"
+        ? "This will always send tool output until OpenCode is restarted."
+        : `This will allow ${request.permission} until OpenCode is restarted.`,
+    ]
   }
 
   return [
-    "This will allow the following patterns until OpenCode is restarted.",
+    request.permission === "tool_result"
+      ? "This will always send output for the following tools until OpenCode is restarted."
+      : "This will allow the following patterns until OpenCode is restarted.",
     ...request.always.map((item) => `- ${item}`),
   ]
 }

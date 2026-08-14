@@ -116,6 +116,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
     stage: "permission" as PermissionStage,
   })
   const pathFormatter = usePathFormatter()
+  const tuiConfig = useTuiConfig()
 
   const session = createMemo(() => sync.data.session.find((s) => s.id === props.request.sessionID))
 
@@ -137,15 +138,25 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
     <Switch>
       <Match when={store.stage === "always"}>
         <Prompt
-          title="Always allow"
+          title={props.request.permission === "tool_result" ? "Always send output" : "Always allow"}
           body={
             <Switch>
               <Match when={props.request.always.length === 1 && props.request.always[0] === "*"}>
-                <TextBody title={"This will allow " + props.request.permission + " until OpenCode is restarted."} />
+                <TextBody
+                  title={
+                    props.request.permission === "tool_result"
+                      ? "This will always send tool output until OpenCode is restarted."
+                      : "This will allow " + props.request.permission + " until OpenCode is restarted."
+                  }
+                />
               </Match>
               <Match when={true}>
                 <box paddingLeft={1} gap={1}>
-                  <text fg={theme.textMuted}>This will allow the following patterns until OpenCode is restarted</text>
+                  <text fg={theme.textMuted}>
+                    {props.request.permission === "tool_result"
+                      ? "This will always send output for the following tools until OpenCode is restarted"
+                      : "This will allow the following patterns until OpenCode is restarted"}
+                  </text>
                   <box>
                     <For each={props.request.always}>
                       {(pattern) => (
@@ -369,6 +380,38 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               }
             }
 
+            if (permission === "tool_result") {
+              const raw = props.request.metadata?.output
+              const output = typeof raw === "string" ? raw : ""
+              const tool = props.request.patterns?.[0]
+              const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
+              return {
+                icon: "⇢",
+                title: `Send output of ${tool ?? "tool"} to the model?`,
+                body: (
+                  <box paddingLeft={1} flexDirection="column" gap={1}>
+                    <text fg={theme.textMuted}>
+                      {"Review the tool output below. Allow sends it to the model; reject withholds it."}
+                    </text>
+                    <scrollbox
+                      height="100%"
+                      scrollAcceleration={scrollAcceleration()}
+                      verticalScrollbarOptions={{
+                        trackOptions: {
+                          backgroundColor: theme.background,
+                          foregroundColor: theme.borderActive,
+                        },
+                      }}
+                    >
+                      <text fg={theme.text} wrapMode="word">
+                        {output || "(empty output)"}
+                      </text>
+                    </scrollbox>
+                  </box>
+                ),
+              }
+            }
+
             return {
               icon: "⚙",
               title: `Call tool ${permission}`,
@@ -386,7 +429,9 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
             <box flexDirection="column" gap={0}>
               <box flexDirection="row" gap={1} flexShrink={0}>
                 <text fg={theme.warning}>{"△"}</text>
-                <text fg={theme.text}>Permission required</text>
+                <text fg={theme.text}>
+                  {props.request.permission === "tool_result" ? "Approve tool output" : "Permission required"}
+                </text>
               </box>
               <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
                 <text fg={theme.textMuted} flexShrink={0}>
@@ -399,10 +444,16 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
           const body = (
             <Prompt
-              title="Permission required"
+              title={
+                props.request.permission === "tool_result" ? "Approve tool output" : "Permission required"
+              }
               header={header()}
               body={current.body}
-              options={{ once: "Allow once", always: "Allow always", reject: "Reject" }}
+              options={
+                props.request.permission === "tool_result"
+                  ? { once: "Send once", always: "Always send", reject: "Withhold" }
+                  : { once: "Allow once", always: "Allow always", reject: "Reject" }
+              }
               escapeKey="reject"
               fullscreen
               onSelect={(option) => {

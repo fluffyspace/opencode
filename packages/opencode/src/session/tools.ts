@@ -17,7 +17,7 @@ import { Effect } from "effect"
 import { MessageV2 } from "./message-v2"
 import { Session } from "./session"
 import { SessionProcessor } from "./processor"
-import { PartID } from "./schema"
+import { PartID, SessionID, MessageID } from "./schema"
 import { EffectBridge } from "@/effect/bridge"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
@@ -56,6 +56,8 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   const truncate = yield* Truncate.Service
   const flags = yield* RuntimeFlags.Service
 
+  const ruleset = Permission.merge(input.agent.permission, input.session.permission ?? [])
+
   const context = (args: Record<string, unknown>, options: ToolExecutionOptions): Tool.Context => ({
     sessionID: input.session.id,
     abort: options.abortSignal!,
@@ -84,9 +86,54 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           ...req,
           sessionID: input.session.id,
           tool: { messageID: input.processor.message.id, callID: options.toolCallId },
-          ruleset: Permission.merge(input.agent.permission, input.session.permission ?? []),
+          ruleset,
         })
         .pipe(Effect.orDie),
+  })
+
+  /**
+   * Gate a tool's output before it is sent back to the model. Governed by an
+   * explicit `tool_result` permission rule: `"ask"` prompts the user to approve
+   * forwarding the result, `"deny"` silently withholds it, and `"allow"`
+   * forwards it unchanged. Without an explicit `tool_result` rule the result is
+   * always forwarded, so existing agent defaults (such as a subagent's
+   * `"*": "deny"`) never silence tool results unexpectedly. Withheld output is
+   * replaced with a placeholder so the model still knows the tool ran.
+   */
+  const approveOutput = Effect.fn("SessionTools.approveOutput")(function* <T extends { output: string }>(request: {
+    tool: string
+    sessionID: SessionID
+    messageID: MessageID
+    callID: string
+    output: T
+  }) {
+    if (!ruleset.some((rule) => rule.permission === "tool_result")) return request.output
+    const rule = Permission.evaluate("tool_result", request.tool, ruleset)
+    if (rule.action === "allow") return request.output
+    const withheld = {
+      ...request.output,
+      output: "[Tool output withheld by the user]",
+      attachments: undefined,
+    }
+    if (rule.action === "deny") return withheld
+    return yield* permission
+      .ask({
+        permission: "tool_result",
+        patterns: [request.tool],
+        always: [request.tool],
+        metadata: { output: request.output.output },
+        sessionID: request.sessionID,
+        tool: { messageID: request.messageID, callID: request.callID },
+        ruleset,
+      })
+      .pipe(
+        Effect.map(() => request.output),
+        Effect.catchTags({
+          PermissionRejectedError: () => Effect.succeed(withheld),
+          PermissionCorrectedError: () => Effect.succeed(withheld),
+          PermissionDeniedError: () => Effect.succeed(withheld),
+        }),
+      )
   })
 
   for (const item of yield* registry.tools({
@@ -126,7 +173,13 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             if (options.abortSignal?.aborted) {
               yield* input.processor.completeToolCall(options.toolCallId, output)
             }
-            return output
+            return yield* approveOutput({
+              tool: item.id,
+              sessionID: ctx.sessionID,
+              messageID: ctx.messageID,
+              callID: options.toolCallId,
+              output,
+            })
           }),
         )
       },
@@ -213,7 +266,13 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             if (opts.abortSignal?.aborted) {
               yield* input.processor.completeToolCall(opts.toolCallId, output)
             }
-            return output
+            return yield* approveOutput({
+              tool: MCP_RESOURCE_TOOLS.list,
+              sessionID: ctx.sessionID,
+              messageID: ctx.messageID,
+              callID: opts.toolCallId,
+              output,
+            })
           }),
         )
       },
@@ -296,7 +355,13 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             if (opts.abortSignal?.aborted) {
               yield* input.processor.completeToolCall(opts.toolCallId, output)
             }
-            return output
+            return yield* approveOutput({
+              tool: MCP_RESOURCE_TOOLS.listTemplates,
+              sessionID: ctx.sessionID,
+              messageID: ctx.messageID,
+              callID: opts.toolCallId,
+              output,
+            })
           }),
         )
       },
@@ -378,7 +443,13 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
             if (opts.abortSignal?.aborted) {
               yield* input.processor.completeToolCall(opts.toolCallId, output)
             }
-            return output
+            return yield* approveOutput({
+              tool: MCP_RESOURCE_TOOLS.read,
+              sessionID: ctx.sessionID,
+              messageID: ctx.messageID,
+              callID: opts.toolCallId,
+              output,
+            })
           }),
         )
       },
@@ -483,7 +554,13 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           if (opts.abortSignal?.aborted) {
             yield* input.processor.completeToolCall(opts.toolCallId, output)
           }
-          return output
+          return yield* approveOutput({
+            tool: key,
+            sessionID: ctx.sessionID,
+            messageID: ctx.messageID,
+            callID: opts.toolCallId,
+            output,
+          })
         }),
       )
     tools[key] = item
