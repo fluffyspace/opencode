@@ -1,12 +1,43 @@
 diff --git a/chunk-bun-tkm837n2.js b/chunk-bun-tkm837n2.js
-index 0000000..0000000 100644
+index e5e5874..5153f21 100644
 --- a/chunk-bun-tkm837n2.js
 +++ b/chunk-bun-tkm837n2.js
-@@ -9169,6 +9169,7 @@
-     this.currentRenderBuffer = this.lib.getCurrentBuffer(this.rendererPtr);
-     this._console.resize(this.width, this.height);
-     this.root.resize(this.width, this.height);
-+    this.forceFullRepaintRequested = true;
-     this.emit("resize" /* RESIZE */, this.width, this.height);
-     this.requestRender();
+@@ -7036,9 +7036,7 @@ class CliRenderer extends EventEmitter5 {
+   realStdoutWrite;
+   _useConsole = true;
+   sigwinchHandler = (() => {
+-    const width = this.stdout.columns || 80;
+-    const height = this.stdout.rows || 24;
+-    this.handleResize(width, height);
++    this.handleResize();
+   }).bind(this);
+   _capabilities = null;
+   _latestPointer = { x: 0, y: 0 };
+@@ -9102,11 +9100,16 @@ Captured external output:
+       this.memorySnapshotTimer = null;
+     }
    }
+-  handleResize(width, height) {
++  handleResize() {
+     if (this._isDestroyed)
+       return;
++    const resize = () => {
++      const stdout = this.stdout;
++      stdout._refreshSize?.();
++      this.processResize(stdout.columns || 80, stdout.rows || 24);
++    };
+     if (this._splitHeight > 0) {
+-      this.processResize(width, height);
++      resize();
+       return;
+     }
+     if (this.resizeTimeoutId !== null) {
+@@ -9115,7 +9118,7 @@ Captured external output:
+     }
+     this.resizeTimeoutId = this.clock.setTimeout(() => {
+       this.resizeTimeoutId = null;
+-      this.processResize(width, height);
++      resize();
+     }, this.resizeDebounceDelay);
+   }
+   queryPixelResolution() {
