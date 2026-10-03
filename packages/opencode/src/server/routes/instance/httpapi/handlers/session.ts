@@ -30,6 +30,7 @@ import {
   ListQuery,
   MessagesQuery,
   PermissionResponsePayload,
+  PermissionMode,
   PromptPayload,
   RevertPayload,
   ShellPayload,
@@ -195,6 +196,14 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         yield* session.setPermission({
           sessionID: ctx.params.sessionID,
           permission: Permission.merge(current.permission ?? [], ctx.payload.permission),
+        })
+      }
+      if (ctx.payload.permissionMode !== undefined) {
+        // Replace the session override wholesale so an output-approval toggle
+        // never accumulates stale rules.
+        yield* session.setPermission({
+          sessionID: ctx.params.sessionID,
+          permission: permissionModeOverride(ctx.payload.permissionMode),
         })
       }
       if (ctx.payload.time?.archived !== undefined) {
@@ -440,3 +449,14 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("updatePart", updatePart)
   }),
 )
+
+// Maps the output-approval mode to a session-scoped `tool_result` override.
+// The override is appended after agent rules in tool resolution, so it wins
+// over the configured `tool_result` permission. `"default"` clears the override
+// so the configured rules apply again. This only gates tool output; it does not
+// change tool-call permissions.
+function permissionModeOverride(mode: PermissionMode): PermissionV1.Rule[] {
+  if (mode === "ask") return [{ permission: "tool_result", action: "ask", pattern: "*" }]
+  if (mode === "allow") return [{ permission: "tool_result", action: "allow", pattern: "*" }]
+  return []
+}

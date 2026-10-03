@@ -1,5 +1,4 @@
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
-import { Permission } from "@/permission"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 
 import { Session } from "@/session/session"
@@ -46,10 +45,18 @@ export const MessagesQuery = Schema.Struct({
   before: Schema.optional(Schema.String),
 })
 export const StatusMap = Schema.Record(Schema.String, SessionStatus.Info)
+// A session-scoped output-approval override that replaces the session's
+// permission rules without editing opencode.json. `"ask"` prompts before tool
+// output is sent to the model, `"allow"` sends it without asking, and
+// `"default"` clears the override so the configured `tool_result` rule applies.
+// It only affects tool output, not tool-call permissions.
+export const PermissionMode = Schema.Literals(["ask", "allow", "default"])
+export type PermissionMode = typeof PermissionMode.Type
 export const UpdatePayload = Schema.Struct({
   title: Schema.optional(Schema.String),
   metadata: Schema.optional(Session.Metadata),
   permission: Schema.optional(PermissionV1.Ruleset),
+  permissionMode: Schema.optional(PermissionMode),
   time: Schema.optional(
     Schema.Struct({
       archived: Schema.optional(Session.ArchivedTimestamp),

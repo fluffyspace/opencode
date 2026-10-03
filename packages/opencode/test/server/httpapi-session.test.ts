@@ -793,6 +793,36 @@ describe("session HttpApi", () => {
   )
 
   it.instance(
+    "updates session permission mode through the update endpoint",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
+        const created = yield* requestJson<Session.Info>(SessionPaths.create, {
+          method: "POST",
+          headers,
+        })
+
+        const update = (permissionMode: string) =>
+          requestJson<Session.Info>(pathFor(SessionPaths.update, { sessionID: created.id }), {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ permissionMode }),
+          })
+
+        const asked = yield* update("ask")
+        expect(asked.permission).toEqual([{ permission: "tool_result", action: "ask", pattern: "*" }])
+
+        const allowed = yield* update("allow")
+        expect(allowed.permission).toEqual([{ permission: "tool_result", action: "allow", pattern: "*" }])
+
+        const reset = yield* update("default")
+        expect(reset.permission).toEqual([])
+      }),
+    { git: true, config: { formatter: false, lsp: false } },
+  )
+
+  it.instance(
     "persists selected workspace id when creating a session",
     () =>
       Effect.gen(function* () {

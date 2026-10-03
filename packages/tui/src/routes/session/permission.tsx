@@ -444,9 +444,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
           const body = (
             <Prompt
-              title={
-                props.request.permission === "tool_result" ? "Approve tool output" : "Permission required"
-              }
+              title={props.request.permission === "tool_result" ? "Approve tool output" : "Permission required"}
               header={header()}
               body={current.body}
               options={

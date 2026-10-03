@@ -5818,6 +5818,10 @@
                   "permission": {
                     "$ref": "#/components/schemas/PermissionRuleset"
                   },
+                  "permissionMode": {
+                    "type": "string",
+                    "enum": ["ask", "allow", "default"]
+                  },
                   "time": {
                     "type": "object",
                     "properties": {
@@ -20631,6 +20635,9 @@
                 "$ref": "#/components/schemas/PermissionActionConfig"
               },
               "skill": {
+                "$ref": "#/components/schemas/PermissionRuleConfig"
+              },
+              "tool_result": {
                 "$ref": "#/components/schemas/PermissionRuleConfig"
               }
             },

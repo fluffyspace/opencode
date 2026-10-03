@@ -41,6 +41,7 @@ import type { AssistantMessage, FilePart, UserMessage } from "@opencode-ai/sdk/v
 import { Locale } from "../../util/locale"
 import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
+import { outputGateMode } from "../../util/output-gate"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
@@ -161,6 +162,10 @@ export function Prompt(props: PromptProps) {
   const dialog = useDialog()
   const toast = useToast()
   const status = createMemo(() => sync.data.session_status?.[props.sessionID ?? ""] ?? { type: "idle" })
+  const outputGate = createMemo(() => {
+    const session = props.sessionID ? sync.session.get(props.sessionID) : undefined
+    return outputGateMode(sync.data.config.permission, session?.permission)
+  })
   const history = usePromptHistory()
   const stash = usePromptStash()
   const keymap = useOpencodeKeymap()
@@ -1449,6 +1454,11 @@ export function Prompt(props: PromptProps) {
                       <text fg={fadeColor(highlight(), agentMetaAlpha())}>
                         {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
                       </text>
+                      <Show when={store.mode === "normal" && local.permission.mode !== "auto" && outputGate()}>
+                        <text fg={fadeColor(theme.warning, agentMetaAlpha())}>
+                          {outputGate() === "deny" ? "output: withhold" : "output: ask"}
+                        </text>
+                      </Show>
                       <Show when={store.mode === "normal" && local.permission.mode === "auto"}>
                         <text fg={fadeColor(theme.textMuted, agentMetaAlpha())}>auto</text>
                       </Show>

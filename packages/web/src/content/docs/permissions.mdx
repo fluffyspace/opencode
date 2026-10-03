@@ -168,7 +168,7 @@ OpenCode permissions are keyed by tool name, plus a couple of safety guards:
 
 ## Reviewing Tool Output
 
-Unlike the permissions above — which gate whether a tool call runs — `tool_result` gates what the tool **returns** to the model *after* it has executed. Set it to `"ask"` to review every tool result before it is sent, which is useful when you can't predict what a tool will output (for example, shell commands that might print secrets):
+Unlike the permissions above — which gate whether a tool call runs — `tool_result` gates what the tool **returns** to the model _after_ it has executed. Set it to `"ask"` to review every tool result before it is sent, which is useful when you can't predict what a tool will output (for example, shell commands that might print secrets):
 
 ```json title="opencode.json"
 {
@@ -201,6 +201,21 @@ You can scope it per tool, e.g. prompt only for shell and read output while auto
   }
 }
 ```
+
+---
+
+## Toggling Output Approval Mid-Session
+
+You don't have to restart or edit `opencode.json` to change whether tool output is reviewed before it reaches the model. In the TUI, run `/permissions` (or the command palette entry "Turn off/on output approval") to flip the current session between two states:
+
+- **On** — tool output is reviewed before it reaches the model (a session `tool_result: ask` rule).
+- **Off** — tool output is sent to the model without asking (a session `tool_result: allow` rule).
+
+The toggle only affects `tool_result` output approval; it does not change whether tool calls themselves are allowed. The effective state starts from the configured `tool_result` rule, so if `opencode.json` sets `"*": "ask"`, the first press turns approval **off**.
+
+The toggle is per-session and persists on the session. It is also available programmatically via the session update API, e.g. `PATCH /session/:id` with `{ "permissionMode": "ask" }` (or `"allow"`, or `"default"` to clear the override).
+
+To disable all guarding at once — no permission prompts and no output approval — use the command palette entry **Enable auto-approve permissions** (or run `/yolo` in the TUI, aliases `/auto` and `/full-access`). Auto mode auto-approves every permission request, including `tool_result`, until you turn it off or restart OpenCode.
 
 ---
 

@@ -945,11 +945,19 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
       },
       {
         name: "permission.mode",
-        title:
-          local.permission.mode === "auto" ? "Disable auto-approve permissions" : "Enable auto-approve permissions",
+        title: local.permission.mode === "auto" ? "Disable auto-approve (yolo)" : "Enable auto-approve (yolo)",
         category: "System",
+        slashName: "yolo",
+        slashAliases: ["auto", "full-access"],
         run: () => {
           local.permission.toggle()
+          const auto = local.permission.mode === "auto"
+          toast.show({
+            variant: auto ? "warning" : "info",
+            message: auto
+              ? "YOLO: on — no permission or output-approval prompts"
+              : "YOLO: off — permission and output-approval prompts restored",
+          })
           dialog.clear()
         },
       },

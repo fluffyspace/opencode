@@ -40,6 +40,7 @@ import type {
 import { useLocal } from "../../context/local"
 import { Locale } from "../../util/locale"
 import { webSearchProviderLabel } from "../../util/tool-display"
+import { outputGateMode, nextOutputApproval } from "../../util/output-gate"
 import { useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
 import { useSDK } from "../../context/sdk"
 import { useEditorContext } from "../../context/editor"
@@ -240,6 +241,7 @@ export function Session() {
   })
   const visible = createMemo(() => !session()?.parentID && permissions().length === 0 && questions().length === 0)
   const disabled = createMemo(() => permissions().length > 0 || questions().length > 0)
+  const outputGate = createMemo(() => outputGateMode(sync.data.config.permission, session()?.permission))
 
   const pending = createMemo(() => {
     const completed = messages().findLastIndex((message) => message.role === "assistant" && message.time.completed)
@@ -746,6 +748,32 @@ export function Session() {
       category: "Session",
       run: () => {
         setShowGenericToolOutput((prev) => !prev)
+        dialog.clear()
+      },
+    },
+    {
+      title: outputGate()
+        ? "Turn off output approval (send tool output without asking)"
+        : "Turn on output approval (ask before sending tool output)",
+      value: "session.toggle.permission_mode",
+      category: "Session",
+      slash: {
+        name: "permissions",
+        aliases: ["toggle-permissions", "output-approval", "gating"],
+      },
+      run: () => {
+        const next = nextOutputApproval(outputGate())
+        void sdk.client.session.update({
+          sessionID: route.sessionID,
+          permissionMode: next,
+        })
+        toast.show({
+          variant: next === "allow" ? "warning" : "info",
+          message:
+            next === "allow"
+              ? "Output approval: off — tool output is sent to the model without asking"
+              : "Output approval: on — you approve each tool output before it is sent",
+        })
         dialog.clear()
       },
     },

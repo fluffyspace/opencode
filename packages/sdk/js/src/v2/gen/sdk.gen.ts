@@ -3566,6 +3566,7 @@ export class Session2 extends HeyApiClient {
         [key: string]: unknown
       }
       permission?: PermissionRuleset
+      permissionMode?: "ask" | "allow" | "default"
       time?: {
         archived?: number
       }
@@ -3583,6 +3584,7 @@ export class Session2 extends HeyApiClient {
             { in: "body", key: "title" },
             { in: "body", key: "metadata" },
             { in: "body", key: "permission" },
+            { in: "body", key: "permissionMode" },
             { in: "body", key: "time" },
           ],
         },

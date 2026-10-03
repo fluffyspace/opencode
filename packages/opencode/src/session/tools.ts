@@ -21,6 +21,7 @@ import { PartID, SessionID, MessageID } from "./schema"
 import { EffectBridge } from "@/effect/bridge"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
+import { Wildcard } from "@opencode-ai/core/util/wildcard"
 import { isRecord } from "@/util/record"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
@@ -55,6 +56,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   const mcp = yield* MCP.Service
   const truncate = yield* Truncate.Service
   const flags = yield* RuntimeFlags.Service
+  const sessions = yield* Session.Service
 
   const ruleset = Permission.merge(input.agent.permission, input.session.permission ?? [])
 
@@ -97,8 +99,11 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
    * forwarding the result, `"deny"` silently withholds it, and `"allow"`
    * forwards it unchanged. Without an explicit `tool_result` rule the result is
    * always forwarded, so existing agent defaults (such as a subagent's
-   * `"*": "deny"`) never silence tool results unexpectedly. Withheld output is
-   * replaced with a placeholder so the model still knows the tool ran.
+   * `"*": "deny"`) never silence tool results unexpectedly. A session
+   * permission-mode override (`{ permission: "*", action: "ask" | "deny" }`)
+   * also gates results, so a mid-session "ask all" toggle covers tool output
+   * too. Withheld output is replaced with a placeholder so the model still
+   * knows the tool ran.
    */
   const approveOutput = Effect.fn("SessionTools.approveOutput")(function* <T extends { output: string }>(request: {
     tool: string
@@ -107,8 +112,24 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     callID: string
     output: T
   }) {
-    if (!ruleset.some((rule) => rule.permission === "tool_result")) return request.output
-    const rule = Permission.evaluate("tool_result", request.tool, ruleset)
+    // Re-read the session so a mid-turn output-approval toggle applies to the
+    // remaining tool outputs in this turn instead of waiting for the next one.
+    const current = yield* sessions.get(request.sessionID).pipe(Effect.orDie)
+    const sessionPermission = current.permission ?? []
+    const currentRuleset = Permission.merge(input.agent.permission, sessionPermission)
+    // An explicit `tool_result` rule anywhere in the merged ruleset (config,
+    // agent, or session) gates the result. A session-level `tool_result`/`*`
+    // override is also a gate: unlike agent defaults it is an explicit user
+    // choice, so it should cover tool output as well.
+    const gatedBySessionOverride = sessionPermission.some(
+      (rule) =>
+        rule.action !== "allow" &&
+        (rule.permission === "tool_result" || rule.permission === "*") &&
+        Wildcard.match(request.tool, rule.pattern),
+    )
+    if (!currentRuleset.some((rule) => rule.permission === "tool_result") && !gatedBySessionOverride)
+      return request.output
+    const rule = Permission.evaluate("tool_result", request.tool, currentRuleset)
     if (rule.action === "allow") return request.output
     const withheld = {
       ...request.output,
@@ -124,7 +145,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
         metadata: { output: request.output.output },
         sessionID: request.sessionID,
         tool: { messageID: request.messageID, callID: request.callID },
-        ruleset,
+        ruleset: currentRuleset,
       })
       .pipe(
         Effect.map(() => request.output),

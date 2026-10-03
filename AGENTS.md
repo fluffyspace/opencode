@@ -1,8 +1,41 @@
-- To regenerate the legacy JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
+# OpenCode
+
+OpenCode is a Bun-workspaces + turbo monorepo. Run commands from the package directory you are changing; the root `test` script intentionally fails (`bunfig.toml` sets `test.root = "./do-not-run-tests-from-root"`).
+
+## Development
+
+- Install: `bun install`. Bun 1.3.14 is pinned (`packageManager`); the pre-push hook enforces the version and runs `bun typecheck`.
+- TUI: `bun dev` from the root (runs `packages/opencode` with `--conditions=browser`). Pass a directory to run against it: `bun dev <dir>`.
+- Headless API server: `bun dev serve` (default port 4096).
+- Build a standalone binary: `./packages/opencode/script/build.ts --single`; the result lands in `packages/opencode/dist/opencode-<platform>/bin/opencode`.
+- Typecheck: `bun typecheck` from a package dir (script is `tsgo --noEmit`; never run `tsc` directly). From the root it runs `bun turbo typecheck`.
+- Lint: `bun lint` (oxlint).
+- Tests: `bun test` from a package dir. CI verification gates: `bun run test:httpapi` in `packages/opencode`, `bun run check:generated` in `packages/client`, `bun --cwd packages/app test:e2e:local` for the Playwright suite.
+
+## Generated Code
+
+- Regenerate the legacy JavaScript SDK: `./packages/sdk/js/script/build.ts`. The full regeneration (`sdk/js` + `openapi.json` + format) is `./script/generate.ts` from the root; CI pushes the result as a `chore: generate` commit.
 - After changing the public Protocol or Server `HttpApi`, run `bun run generate` from `packages/client`. Do not edit `src/generated` or `src/generated-effect` directly.
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk-next` composes Client, Core, and Server.
-- The default branch in this repo is `dev`.
-- Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
+
+## Repository Layout
+
+- `packages/opencode` — core business logic and server (`src/session` is the session orchestration layer).
+- `packages/tui` — terminal UI (SolidJS + opentui). It moved out of `packages/opencode/src/cli/cmd/tui`; CONTRIBUTING.md still points at the old location.
+- `packages/app` — web UI; `packages/desktop` — Electron wrapper; `packages/ui` / `packages/session-ui` — shared UI.
+- `packages/core` — V2 domain model, storage, tool registry; `packages/core/src/session` holds the V2 session core.
+- `packages/schema` / `packages/protocol` — wire contracts; `packages/llm` — LLM route runtime; `packages/plugin` — `@opencode-ai/plugin`.
+- `packages/client`, `packages/sdk`, `packages/sdk-next` — generated SDKs; do not hand-edit generated output.
+
+Each package owns an `AGENTS.md` with binding conventions for its area (schema, llm, core/tool, server/httpapi, test fixtures, app/desktop/ui localization, app/e2e Playwright). Read the ones for the package you touch.
+
+## Localization (app / desktop / ui / session-ui)
+
+Never hardcode user-visible English strings; always go through the typed i18n API, and never change existing English source copy to aid translation. The full policy is in `packages/app/AGENTS.md`.
+
+## Git
+
+- The default branch is `dev`. A local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
 
 ## Branch Names
 
@@ -140,13 +173,9 @@ const table = sqliteTable("session", {
 
 ## Testing
 
-- Avoid mocks as much as possible, you shouldn't be using globalThis.\* at all unless it's the only option.
-- Test actual implementation, do not duplicate logic into tests
-- Tests cannot run from repo root (guard: `do-not-run-tests-from-root`); run from package dirs like `packages/opencode`.
-
-## Type Checking
-
-- Always run `bun typecheck` from package directories (e.g., `packages/opencode`), never `tsc` directly.
+- Avoid mocks as much as possible; avoid `globalThis.*` unless it is the only option.
+- Test the actual implementation; do not duplicate logic into tests.
+- Tests cannot run from the repo root (guard: `do-not-run-tests-from-root`); run from package dirs like `packages/opencode`.
 
 ## V2 Session Core
 
