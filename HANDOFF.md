@@ -1,4 +1,4 @@
-# HANDOFF — opencode-fluffyspace fork work (last updated 2026-08-15)
+# HANDOFF — opencode-fluffyspace fork work (last updated 2026-10-04)
 
 Local state of the `fluffyspace/opencode` fork and the custom approval-mode
 work built on top of it, so a future session can continue without
@@ -9,10 +9,16 @@ re-discovering everything.
   at `/home/kodba/opencode-fluffyspace`. Bun-workspaces + turbo monorepo.
 - The fork's `output-approval` branch carries one custom commit ahead of upstream dev:
   `751fee493` "feat: add tool_result permission to approve tool output before sending to model".
-- This is the source of the opencode binary currently installed at
-  `/usr/local/bin/opencode` (see below). The official npm install `opencode-ai@1.18.18`
-  at `/usr/lib/node_modules/opencode-ai` (symlinked from `/usr/bin/opencode` and
-  `/bin/opencode`) is left untouched and is the rollback path.
+- The rebuild of this branch is what is installed at `/usr/local/bin/opencode`
+  (symlink → `packages/opencode/dist/opencode-linux-x64/bin/opencode`), version
+  `0.0.0-output-approval-202609201208`, re-pointed 2026-10-04.
+- After the 2026-09 SSD swap the box had a different `fix/stale-width-shrink` build
+  installed (version `0.0.0-fix/stale-width-shrink-202608200952`, built 2026-08-20,
+  which lacks the output-approval feature). That binary is backed up at
+  `/home/kodba/backups/opencode-fix-stale-width-shrink-202608200952`; its source
+  branch is not present in any local repo.
+- The official npm install (`opencode-ai`) and `/usr/bin/opencode` / `/bin/opencode`
+  no longer exist on this box, so there is no upstream rollback path anymore.
 
 ## How the custom binary is built & installed
 - Build: `export PATH="/root/.bun/bin:$PATH"` then
@@ -85,6 +91,20 @@ nothing is gated. Toast reports on/off; the prompt already shows an `auto` badge
 - The repo has many per-package AGENTS.md files — read the one for the package you touch.
 
 ## Session log
+- **2026-10-04 — reinstalled bun, re-pointed binary, committed + pushed:**
+  - After the SSD swap: `bun` was missing and `/usr/local/bin/opencode` was a stale
+    `fix/stale-width-shrink` build (2026-08-20) that lacks the output-approval feature;
+    the local fork build `0.0.0-output-approval-202609201208` was intact.
+  - Re-pointed `/usr/local/bin/opencode` → local dist build; backed the old binary up
+    to `/home/kodba/backups/opencode-fix-stale-width-shrink-202608200952`.
+  - Reinstalled `bun@1.3.14` at `/root/.bun/bin/bun`. No `unzip` on the box, so the
+    release zip was extracted with python3 instead of the bun.sh installer.
+  - Committed the 2026-09-20 working-tree work as `170ff1901` and pushed it to
+    `origin/output-approval` (fast-forward from `751fee493`). The pre-push
+    `bun turbo typecheck` passed.
+  - Gotcha: the pre-push hook runs `bun turbo typecheck` over 30 packages; on this
+    4-core/16 GB box the concurrent `tsgo` workers (~1.3 GB each) thrash swap. Run
+    the push with `TURBO_CONCURRENCY=2` (or `--concurrency` on turbo) so it completes.
 - **2026-09-20 — fixed `/permissions` (output-approval toggle) + added `/yolo`:**
   - **Root causes found:** (1) badge/effective gating used config `tool_result` + session
     rules, but `sessionPermissionMode` only looked at the session `*` wildcard → first
@@ -125,6 +145,7 @@ nothing is gated. Toast reports on/off; the prompt already shows an `auto` badge
   startup); mid-session toggle via `/permissions` slash command in the TUI.
 
 ## Open items
-- The approval-mode / mid-session-toggle working-tree changes above are **uncommitted**.
-  Decide whether to commit/push them to the `output-approval` branch (or rebase onto the
-  latest upstream `dev` — the fork was ~18 commits behind at clone time).
+- The 2026-09-20 changes are now committed + pushed (`170ff1901`). Consider rebasing
+  onto the latest upstream `dev` (the fork was ~18 commits behind at clone time).
+- The pre-push hook must run with `TURBO_CONCURRENCY=2` on this box to avoid swap
+  thrash (see 2026-10-04 session log).
